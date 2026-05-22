@@ -1,0 +1,261 @@
+﻿<div id="spotify-overlay">
+    <div id="spotify-card" class="sp-card">
+        <img id="spotify-thumb" class="sp-thumb" src="" alt="">
+        <div class="sp-main">
+            <div class="sp-top-row">
+                <div class="sp-texts">
+                    <div id="spotify-song" class="sp-song"></div>
+                    <div id="spotify-artist" class="sp-artist"></div>
+                </div>
+                <div id="spotify-pill" class="sp-pill">
+                    <span class="sp-pill-dot"></span>
+                    <span id="spotify-pill-text" class="sp-pill-text">Spotify</span>
+                </div>
+            </div>
+
+            <div id="spotify-progress-wrap" class="sp-progress-wrap">
+                <div class="sp-progress-bar">
+                    <div id="spotify-progress-fill" class="sp-progress-fill"></div>
+                </div>
+                <div class="sp-progress-times">
+                    <span id="spotify-progress-now" class="sp-progress-now">0:00</span>
+                    <span id="spotify-requester" class="sp-requester"></span>
+                    <span id="spotify-progress-total" class="sp-progress-total">0:00</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: transparent;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+
+    #spotify-overlay {
+        position: absolute;
+        left: 15px;
+        top: 15px;
+        right: auto;
+        bottom: auto;
+        width: 65%;
+        max-width: 760px;
+        pointer-events: none;
+        z-index: 999999;
+
+        --sp-scale: 0.85;
+        --sp-thumb-scale: 1;
+        --sp-thumb-left-offset: 0;
+        --sp-bg: rgba(10,10,16,0.70);
+        --sp-border: rgba(156,92,255,0.70);
+        --sp-name: #9C5CFF;
+        --sp-text: #EAF7FF;
+        --sp-accent-start: #40FFC0;
+        --sp-accent-fade: rgba(156,92,255,0.0);
+        --sp-glow-purple: rgba(156,92,255,0.45);
+        --sp-glow-green: rgba(64,255,192,0.30);
+
+        zoom: var(--sp-scale);
+    }
+
+    .sp-card {
+        min-width: 340px;
+        max-width: 760px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--sp-bg);
+        border: 1px solid var(--sp-border);
+        border-radius: 18px;
+        padding: 7px 10px;
+        color: var(--sp-text);
+        box-shadow:
+                0 0 18px var(--sp-glow-purple),
+                0 0 38px var(--sp-glow-green),
+                0 10px 30px rgba(0,0,0,0.35);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        transform: translateY(6px);
+        opacity: 0;
+        transition: transform 220ms ease, opacity 220ms ease;
+        overflow: hidden;
+    }
+
+    .sp-card.sp-in {
+        transform: translateY(0);
+        opacity: 1;
+    }
+
+    .sp-card.sp-hidden {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    .sp-card.sp-glow-off {
+        box-shadow: none;
+    }
+
+    .sp-thumb {
+        width: calc(64px * var(--sp-thumb-scale));
+        height: calc(64px * var(--sp-thumb-scale));
+        border-radius: 13px;
+        object-fit: cover;
+        flex: 0 0 calc(64px * var(--sp-thumb-scale));
+        margin-left: calc(var(--sp-thumb-left-offset) * 1px);
+        border: 1px solid rgba(64,255,192,0.55);
+        box-shadow:
+                0 0 16px rgba(64,255,192,0.28),
+                0 0 22px rgba(156,92,255,0.25);
+        background: rgba(255,255,255,0.08);
+        display: none;
+    }
+
+    .sp-card.sp-thumb-glow-off .sp-thumb {
+        box-shadow: none;
+    }
+
+    .sp-thumb.sp-visible {
+        display: block;
+    }
+
+    .sp-main {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .sp-top-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .sp-texts {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .sp-song {
+        color: var(--sp-name);
+        font-weight: 800;
+        letter-spacing: 0.2px;
+        text-shadow: 0 0 10px rgba(156,92,255,0.55);
+        font-size: 18px;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 520px;
+    }
+
+    .sp-artist {
+        color: var(--sp-text);
+        font-size: 16px;
+        line-height: 1.2;
+        text-shadow: 0 0 10px rgba(64,255,192,0.14);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 520px;
+        margin-top: 2px;
+    }
+
+    .sp-pill {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #1ed760, #12b94b);
+        color: white;
+        font-size: 11px;
+        font-weight: 900;
+        line-height: 1;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        box-shadow: 0 0 12px rgba(30,215,96,0.35);
+    }
+
+    .sp-pill.sp-paused {
+        background: linear-gradient(180deg, #8d8d98, #5f5f68);
+        box-shadow: 0 0 12px rgba(180,180,190,0.20);
+    }
+
+    .sp-pill-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: white;
+        opacity: 0.95;
+    }
+
+    .sp-progress-wrap {
+        margin-top: 8px;
+    }
+
+    .sp-progress-bar {
+        position: relative;
+        width: 100%;
+        height: 4px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.14);
+        overflow: hidden;
+    }
+
+    .sp-progress-fill {
+        width: 0%;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--sp-accent-start), #b77dff);
+        box-shadow: 0 0 10px rgba(64,255,192,0.24);
+    }
+
+    .sp-progress-times {
+        margin-top: 4px;
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr) 48px;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        color: rgba(234,247,255,0.72);
+        line-height: 1;
+    }
+
+    .sp-progress-now {
+        text-align: left;
+        width: 48px;
+    }
+
+    .sp-progress-total {
+        text-align: right;
+        width: 48px;
+    }
+
+    .sp-requester {
+        min-width: 0;
+        text-align: center;
+        color: rgba(234,247,255,0.68);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        visibility: hidden;
+    }
+
+    .sp-requester.sp-visible {
+        visibility: visible;
+    }
+
+    .sp-requester-name {
+        color: var(--sp-name);
+        font-weight: 800;
+        text-shadow: 0 0 10px rgba(156,92,255,0.55);
+    }
+
+    .sp-progress-wrap.sp-hidden {
+        display: none;
+    }
+</style>
