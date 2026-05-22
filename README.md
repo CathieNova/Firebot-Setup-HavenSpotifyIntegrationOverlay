@@ -1,7 +1,7 @@
 # Haven Spotify Overlay
-![GitHub release](https://img.shields.io/github/v/release/CathieNova/Firebot-Setup-HavenSpotifyIntegrationOverlay?style=flat-square)
-![GitHub downloads](https://img.shields.io/github/downloads/CathieNova/Firebot-Setup-HavenSpotifyIntegrationOverlay/total?style=flat-square)
-![GitHub issues](https://img.shields.io/github/issues/CathieNova/Firebot-Setup-HavenSpotifyIntegrationOverlay?style=flat-square)
+![GitHub release](https://img.shields.io/github/v/release/CathieNova/Firebot-Setup-HavenSpotifyIntegrationOverlay)
+![GitHub downloads](https://img.shields.io/github/downloads/CathieNova/Firebot-Setup-HavenSpotifyIntegrationOverlay/total)
+![GitHub issues](https://img.shields.io/github/issues/CathieNova/Firebot-Setup-HavenSpotifyIntegrationOverlay)
 
 A ready-to-import overlay setup for [Haven Spotify Integration](https://github.com/CathieNova/Firebot-Script-HavenSpotifyIntegration)
 
