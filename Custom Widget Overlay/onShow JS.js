@@ -1,4 +1,4 @@
-﻿const STATE_KEY = "__spotify_overlay_" + widgetId;
+const STATE_KEY = "__spotify_overlay_" + widgetId;
 
 function esc(s) {
     return String(s == null ? "" : s)
@@ -77,17 +77,42 @@ function cleanData(data) {
     };
 }
 
+function settingBool(settings, key, fallback) {
+    const value = toBool(settings && settings[key]);
+    return value == null ? fallback : value;
+}
+
+function nestedSetting(settings, groupName, key, fallback) {
+    const group = settings && settings[groupName];
+    if (group && group[key] != null) return group[key];
+    return settings && settings[key] != null ? settings[key] : fallback;
+}
+
 function requestCurrentSpotify(delayMs) {
     const S = window[STATE_KEY];
     if (!S) return;
 
     clearTimeout(S.requestTimer);
 
+    const now = Date.now();
+    const cooldownMs = Math.max(3000, Number(S.requestCooldownMs || 15000));
+    const remainingMs = Math.max(0, cooldownMs - (now - Number(S.lastCurrentRequestAt || 0)));
+    const waitMs = Math.max(0, Number(delayMs || 0), remainingMs);
+
     S.requestTimer = setTimeout(function () {
+        const S = window[STATE_KEY];
+        if (!S) return;
+
+        const now = Date.now();
+        const cooldownMs = Math.max(3000, Number(S.requestCooldownMs || 15000));
+        if (now - Number(S.lastCurrentRequestAt || 0) < cooldownMs) return;
+
+        S.lastCurrentRequestAt = now;
+
         utils.sendMessageToFirebot("spotify-request-current", {
             widgetId: widgetId
         });
-    }, Math.max(0, Number(delayMs || 0)));
+    }, waitMs);
 }
 
 function formatMs(ms) {
@@ -108,6 +133,7 @@ function applySettings(settings) {
     const card = containerElement.querySelector("#spotify-card");
     if (!root) return;
 
+    const S = window[STATE_KEY];
     const s = settings || {};
     const style = s.style || {};
 
@@ -115,26 +141,42 @@ function applySettings(settings) {
     root.style.right = "auto";
     root.style.top = "auto";
     root.style.bottom = "auto";
+    root.style.transform = "none";
 
-    const x = Number(s.xOffsetToAnchor == null ? 15 : s.xOffsetToAnchor) + "px";
-    const y = Number(s.yOffsetToAnchor == null ? 15 : s.yOffsetToAnchor) + "px";
-    const corner = String(s.anchorCorner || "top-left").toLowerCase();
+    const xOffset = toNumber(s.xOffsetToAnchor, 15);
+    const yOffset = toNumber(s.yOffsetToAnchor, 15);
+    const x = xOffset + "px";
+    const y = yOffset + "px";
+    const anchorPosition = String(s.anchorPosition || "top-left").toLowerCase();
+    const parts = anchorPosition.split("-");
+    const vertical = parts[0] || "top";
+    const horizontal = parts[1] || "left";
+    const transforms = [];
 
-    if (corner === "top-right") {
+    if (horizontal === "center") {
+        root.style.left = "calc(50% + " + xOffset + "px)";
+        transforms.push("translateX(-50%)");
+    } else if (horizontal === "right") {
         root.style.right = x;
-        root.style.top = y;
-    } else if (corner === "bottom-left") {
-        root.style.left = x;
-        root.style.bottom = y;
-    } else if (corner === "bottom-right") {
-        root.style.right = x;
-        root.style.bottom = y;
     } else {
         root.style.left = x;
+    }
+
+    if (vertical === "middle") {
+        root.style.top = "calc(50% + " + yOffset + "px)";
+        transforms.push("translateY(-50%)");
+    } else if (vertical === "bottom") {
+        root.style.bottom = y;
+    } else {
         root.style.top = y;
     }
 
+    if (transforms.length > 0) {
+        root.style.transform = transforms.join(" ");
+    }
+
     root.style.setProperty("--sp-scale", String(s.scaleMultiplier == null ? 0.85 : s.scaleMultiplier));
+    root.style.setProperty("--sp-card-max-width", Math.max(260, toNumber(s.cardMaxWidthPx, 760)) + "px");
     root.style.setProperty("--sp-thumb-scale", String(s.thumbnailScale == null ? 1 : s.thumbnailScale));
     root.style.setProperty("--sp-thumb-left-offset", String(s.thumbnailOffsetToLeft == null ? 0 : s.thumbnailOffsetToLeft));
 
@@ -142,10 +184,20 @@ function applySettings(settings) {
     if (style.borderColor) root.style.setProperty("--sp-border", style.borderColor);
     if (style.nameFallbackColor) root.style.setProperty("--sp-name", style.nameFallbackColor);
     if (style.textColor) root.style.setProperty("--sp-text", style.textColor);
-    if (style.accentStart) root.style.setProperty("--sp-accent-start", style.accentStart);
-    if (style.accentFade) root.style.setProperty("--sp-accent-fade", style.accentFade);
-    if (style.glowPurple) root.style.setProperty("--sp-glow-purple", style.glowPurple);
-    if (style.glowGreen) root.style.setProperty("--sp-glow-green", style.glowGreen);
+    if (style.progressStartColor) root.style.setProperty("--sp-progress-start", style.progressStartColor);
+    if (style.progressEndColor) root.style.setProperty("--sp-progress-end", style.progressEndColor);
+    if (style.cardGlowColor) root.style.setProperty("--sp-card-glow-color", style.cardGlowColor);
+    if (style.thumbnailGlowColor) root.style.setProperty("--sp-thumbnail-glow-color", style.thumbnailGlowColor);
+
+    if (S) {
+        S.showThumbnail = settingBool(s, "showThumbnail", true);
+        S.showStatusPill = settingBool(s, "showStatusPill", true);
+        S.showPausedPill = settingBool(s, "showPausedPill", true);
+        S.songOverflow = String(nestedSetting(s, "text", "songOverflow", "truncate")).toLowerCase();
+        S.artistOverflow = String(nestedSetting(s, "text", "artistOverflow", "truncate")).toLowerCase();
+        S.scrollSpeedPxPerSecond = clamp(toNumber(nestedSetting(s, "text", "scrollSpeedPxPerSecond", 35), 35), 15, 120);
+        S.requestCooldownMs = Math.max(3000, toNumber(s.requestCooldownMs, 15000));
+    }
 
     if (card) {
         if (s.showGlow === false) card.classList.add("sp-glow-off");
@@ -154,6 +206,14 @@ function applySettings(settings) {
         if (s.thumbnailGlow === false) card.classList.add("sp-thumb-glow-off");
         else card.classList.remove("sp-thumb-glow-off");
     }
+}
+
+function hideThumbnail() {
+    const img = containerElement.querySelector("#spotify-thumb");
+    if (!img) return;
+
+    img.removeAttribute("src");
+    img.classList.remove("sp-visible");
 }
 
 function hideSpotifyOverlay() {
@@ -175,7 +235,6 @@ function showPausedOverlay(data) {
 
     const d = S.lastData;
     const pausedText = String(data && data.pausedText ? data.pausedText : "Paused");
-
     const pill = containerElement.querySelector("#spotify-pill");
     const pillText = containerElement.querySelector("#spotify-pill-text");
 
@@ -188,6 +247,7 @@ function showPausedOverlay(data) {
 
     pill.classList.add("sp-paused");
     pillText.textContent = pausedText;
+    pill.classList.toggle("sp-hidden", !S.showPausedPill);
 }
 
 function updateProgressUi() {
@@ -277,7 +337,7 @@ function getSpotifyThumbnail(trackUrl) {
     if (!url) return Promise.resolve("");
 
     return fetch("https://open.spotify.com/oembed?url=" + encodeURIComponent(url), {
-        cache: "no-store"
+        cache: "force-cache"
     })
         .then(function (response) {
             if (!response.ok) return null;
@@ -292,9 +352,33 @@ function getSpotifyThumbnail(trackUrl) {
         });
 }
 
+function rememberThumbnail(trackKey, thumbnail) {
+    const S = window[STATE_KEY];
+    if (!S || !trackKey || !thumbnail) return;
+
+    if (!S.thumbnailCache[trackKey]) {
+        S.thumbnailOrder.push(trackKey);
+    }
+
+    S.thumbnailCache[trackKey] = thumbnail;
+
+    while (S.thumbnailOrder.length > 100) {
+        const oldKey = S.thumbnailOrder.shift();
+        delete S.thumbnailCache[oldKey];
+    }
+}
+
 function loadSpotifyThumbnail(trackUrl, trackKey) {
     const S = window[STATE_KEY];
-    if (!S) return;
+    if (!S || !S.showThumbnail) {
+        hideThumbnail();
+        return;
+    }
+
+    if (!String(trackUrl || "").trim()) {
+        hideThumbnail();
+        return;
+    }
 
     if (S.thumbnailCache[trackKey]) {
         const img = containerElement.querySelector("#spotify-thumb");
@@ -305,20 +389,26 @@ function loadSpotifyThumbnail(trackUrl, trackKey) {
         return;
     }
 
+    if (S.thumbnailLoads[trackKey]) return;
+
+    S.thumbnailLoads[trackKey] = true;
+
     getSpotifyThumbnail(trackUrl)
         .then(function (thumbnail) {
             if (!thumbnail) return "";
             return preloadImage(thumbnail);
         })
         .then(function (readyThumbnail) {
-            if (!readyThumbnail) return;
-
             const S = window[STATE_KEY];
             if (!S) return;
 
-            S.thumbnailCache[trackKey] = readyThumbnail;
+            delete S.thumbnailLoads[trackKey];
 
-            if (S.trackKey !== trackKey) return;
+            if (!readyThumbnail) return;
+
+            rememberThumbnail(trackKey, readyThumbnail);
+
+            if (S.trackKey !== trackKey || !S.showThumbnail) return;
 
             const img = containerElement.querySelector("#spotify-thumb");
             if (!img) return;
@@ -327,6 +417,8 @@ function loadSpotifyThumbnail(trackUrl, trackKey) {
             img.classList.add("sp-visible");
         })
         .catch(function () {
+            const S = window[STATE_KEY];
+            if (S) delete S.thumbnailLoads[trackKey];
         });
 }
 
@@ -348,18 +440,52 @@ function updateRequester(data) {
 }
 
 function setSpotifyPill(isPaused) {
+    const S = window[STATE_KEY];
     const pill = containerElement.querySelector("#spotify-pill");
     const pillText = containerElement.querySelector("#spotify-pill-text");
 
-    if (!pill || !pillText) return;
+    if (!pill || !pillText || !S) return;
 
     if (isPaused) {
         pill.classList.add("sp-paused");
         pillText.textContent = "Paused";
+        pill.classList.toggle("sp-hidden", !S.showPausedPill);
     } else {
         pill.classList.remove("sp-paused");
         pillText.textContent = "Spotify";
+        pill.classList.toggle("sp-hidden", !S.showStatusPill);
     }
+}
+
+function setText(el, value, mode) {
+    if (!el) return;
+
+    let inner = el.querySelector(".sp-text-inner");
+    if (!inner) {
+        inner = document.createElement("span");
+        inner.className = "sp-text-inner";
+        el.textContent = "";
+        el.appendChild(inner);
+    }
+
+    el.classList.remove("sp-scroll");
+    inner.style.animationDuration = "";
+    inner.style.removeProperty("--sp-scroll-distance");
+    inner.textContent = value;
+
+    requestAnimationFrame(function () {
+        const S = window[STATE_KEY];
+        if (!S || String(mode || "truncate").toLowerCase() !== "scroll") return;
+
+        const overflowPx = Math.max(0, inner.scrollWidth - el.clientWidth);
+        if (overflowPx <= 2) return;
+
+        const duration = clamp((overflowPx * 2) / S.scrollSpeedPxPerSecond, 3.5, 18);
+
+        inner.style.setProperty("--sp-scroll-distance", overflowPx + "px");
+        inner.style.animationDuration = duration + "s";
+        el.classList.add("sp-scroll");
+    });
 }
 
 function showSpotifyOverlay(rawData, forcePaused) {
@@ -384,23 +510,26 @@ function showSpotifyOverlay(rawData, forcePaused) {
     const trackId = String(d.trackId || "").trim();
     const playingValue = forcePaused ? false : toBool(d.isPlaying);
 
-    if (!song || playingValue === false && !forcePaused) {
+    if (!song) {
         hideSpotifyOverlay();
-        requestCurrentSpotify(2500);
+        requestCurrentSpotify(6000);
+        return;
+    }
+
+    if (playingValue === false && !forcePaused) {
+        hideSpotifyOverlay();
         return;
     }
 
     const trackKey = trackId || trackUrl || song + "|" + artist;
     const S = window[STATE_KEY];
-    const trackChanged = S.trackKey !== trackKey;
-
     S.lastData = d;
     S.isPlaying = playingValue !== false;
     S.progressMs = Math.max(0, toNumber(d.progressMs, 0));
     S.durationMs = Math.max(0, toNumber(d.durationMs, 0));
 
-    songEl.textContent = song;
-    artistEl.textContent = artist;
+    setText(songEl, song, S.songOverflow);
+    setText(artistEl, artist, S.artistOverflow);
 
     updateRequester(d);
     setSpotifyPill(forcePaused === true);
@@ -416,7 +545,9 @@ function showSpotifyOverlay(rawData, forcePaused) {
         startProgressTimer();
     }
 
-    if (trackChanged) {
+    if (!S.showThumbnail) {
+        hideThumbnail();
+    } else {
         S.trackKey = trackKey;
         loadSpotifyThumbnail(trackUrl, trackKey);
     }
@@ -432,7 +563,17 @@ window[STATE_KEY] = {
     isPlaying: true,
     progressTimer: null,
     requestTimer: null,
+    requestCooldownMs: 15000,
+    lastCurrentRequestAt: 0,
     thumbnailCache: {},
+    thumbnailOrder: [],
+    thumbnailLoads: {},
+    showThumbnail: true,
+    showStatusPill: true,
+    showPausedPill: true,
+    songOverflow: "truncate",
+    artistOverflow: "truncate",
+    scrollSpeedPxPerSecond: 35,
     lastData: null
 };
 

@@ -1,4 +1,4 @@
-﻿const STATE_KEY = "__spotify_overlay_" + widgetId;
+const STATE_KEY = "__spotify_overlay_" + widgetId;
 const S = window[STATE_KEY];
 
 if (!S) {
